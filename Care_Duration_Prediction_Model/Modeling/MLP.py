@@ -20,7 +20,21 @@ plt.rcParams['axes.unicode_minus'] = False     # 음수 부호 깨짐 방지
 matplotlib.use('Agg')
 
 ################################################################################################
-####################################### Data load ######################################
+####################################### Path #############################################
+################################################################################################
+
+file_name = 'MLP'
+
+model_save_dir = f"./Care_Duration_Prediction_Model/Modeling/{file_name}/Model"
+result_save_dir = f"./Care_Duration_Prediction_Model/Modeling/{file_name}/Result"
+os.makedirs(model_save_dir, exist_ok=True)
+os.makedirs(result_save_dir, exist_ok=True)
+
+model_path = os.path.join(model_save_dir, "best_model.pt")
+result_path = os.path.join(result_save_dir, "predict_result.png")
+
+################################################################################################
+####################################### Data load #############################################
 ################################################################################################
 df = pd.read_csv('./Care_Duration_Prediction_Model/Data_Preprocessing/Regular_Expression/final_data.csv')
 print(df.describe())
@@ -146,8 +160,8 @@ class ComplexMLPWithEmbedding(nn.Module):
             layers.append(nn.Dropout(0.3))
             prev_dim = h
         layers.append(nn.Linear(prev_dim, bottleneck_dim))
-        layers.append(nn.Sigmoid())
-        # layers.append(nn.Softplus())
+        # layers.append(nn.Sigmoid())
+        layers.append(nn.Softplus())
         layers.append(nn.Linear(bottleneck_dim, output_dim))
         self.network = nn.Sequential(*layers)
 
@@ -184,58 +198,61 @@ best_val_loss = float('inf')
 patience = 30
 counter = 0
 
-for epoch in range(1000):
-    model.train()
-    epoch_train_loss = 0.0
-    for disease_id, xb, yb in train_loader:
-        disease_id, xb, yb = disease_id.to(device), xb.to(device), yb.to(device)
-        optimizer.zero_grad()
-        preds = model(disease_id, xb)
-        loss = criterion(preds, yb)
-        loss.backward()
-        optimizer.step()
-        epoch_train_loss += loss.item() * xb.size(0)
-    epoch_train_loss /= len(train_loader.dataset)
-    train_losses.append(epoch_train_loss)
-
-    # validation
-    model.eval()
-    epoch_val_loss = 0.0
-    with torch.no_grad():
-        for disease_id, xb, yb in val_loader:
-            disease_id, xb, yb = disease_id.to(device), xb.to(device), yb.to(device)
-            preds = model(disease_id, xb)
-            loss = criterion(preds, yb)
-            epoch_val_loss += loss.item() * xb.size(0)
-    epoch_val_loss /= len(val_loader.dataset)
-    val_losses.append(epoch_val_loss)
-
-    # ReduceLROnPlateau 확인
-    prev_lr = optimizer.param_groups[0]['lr']
-    scheduler.step(epoch_val_loss)
-    new_lr = optimizer.param_groups[0]['lr']
-    if new_lr < prev_lr:
-        print(f"📉 Epoch {epoch + 1:03d} | LR reduced from {prev_lr:.8f} to {new_lr:.8f}")
-
-    print(f"Epoch {epoch+1:03d} | Train Loss: {epoch_train_loss:.8f} | Val Loss: {epoch_val_loss:.8f}")
-
-    # Early stopping
-    if epoch_val_loss < best_val_loss:
-        best_val_loss = epoch_val_loss
-        counter = 0
-        torch.save(model.state_dict(), "best_model.pt")
-    else:
-        counter += 1
-        if counter >= patience:
-            print("🛑 Early stopping triggered.")
-            break
+# for epoch in range(1000):
+#     model.train()
+#     epoch_train_loss = 0.0
+#     for disease_id, xb, yb in train_loader:
+#         disease_id, xb, yb = disease_id.to(device), xb.to(device), yb.to(device)
+#         optimizer.zero_grad()
+#         preds = model(disease_id, xb)
+#         loss = criterion(preds, yb)
+#         loss.backward()
+#         optimizer.step()
+#         epoch_train_loss += loss.item() * xb.size(0)
+#     epoch_train_loss /= len(train_loader.dataset)
+#     train_losses.append(epoch_train_loss)
+#
+#     # validation
+#     model.eval()
+#     epoch_val_loss = 0.0
+#     with torch.no_grad():
+#         for disease_id, xb, yb in val_loader:
+#             disease_id, xb, yb = disease_id.to(device), xb.to(device), yb.to(device)
+#             preds = model(disease_id, xb)
+#             loss = criterion(preds, yb)
+#             epoch_val_loss += loss.item() * xb.size(0)
+#     epoch_val_loss /= len(val_loader.dataset)
+#     val_losses.append(epoch_val_loss)
+#
+#     # ReduceLROnPlateau 확인
+#     prev_lr = optimizer.param_groups[0]['lr']
+#     scheduler.step(epoch_val_loss)
+#     new_lr = optimizer.param_groups[0]['lr']
+#     if new_lr < prev_lr:
+#         print(f"📉 Epoch {epoch + 1:03d} | LR reduced from {prev_lr:.8f} to {new_lr:.8f}")
+#
+#     print(f"Epoch {epoch+1:03d} | Train Loss: {epoch_train_loss:.8f} | Val Loss: {epoch_val_loss:.8f}")
+#
+#     # Early stopping
+#     if epoch_val_loss < best_val_loss:
+#         best_val_loss = epoch_val_loss
+#         counter = 0
+#         torch.save(model.state_dict(), "best_model.pt")
+#     else:
+#         counter += 1
+#         if counter >= patience:
+#             print("🛑 Early stopping triggered.")
+#             break
+#
+# torch.save(model.state_dict(), model_path)
 
 ################################################################################################
 ####################################### AI Test ################################################
 ################################################################################################
 
-model.load_state_dict(torch.load("best_model.pt"))
+model.load_state_dict(torch.load(model_path, map_location=torch.device('cuda')))
 model.eval()
+
 preds_list = []
 targets_list = []
 
@@ -255,17 +272,7 @@ targets_original = scaler.inverse_transform(targets_all)
 ################################################################################################
 ####################################### Save ###################################################
 ################################################################################################
-file_name = 'MLP'
 
-model_save_dir = f"./Care_Duration_Prediction_Model/Modeling/{file_name}/Model"
-result_save_dir = f"./Care_Duration_Prediction_Model/Modeling/{file_name}/Result"
-os.makedirs(model_save_dir, exist_ok=True)
-os.makedirs(result_save_dir, exist_ok=True)
-
-model_path = os.path.join(model_save_dir, "best_model.pt")
-result_path = os.path.join(result_save_dir, "predict_result.png")
-
-torch.save(model.state_dict(), model_path)
 
 # 시각화: 예측 vs 실제 (산점도)
 plt.figure(figsize=(12, 8))
@@ -332,37 +339,40 @@ hook_handle.remove()
 ####################################### Save ###################################################
 ################################################################################################
 
-# 병명 복원
-inverse_diseases = le.inverse_transform(X['병명'])
-
 # 성별, 연령대, 지역본부 복원
 def reverse_one_hot(df, prefix):
     cols = [col for col in df.columns if col.startswith(prefix + '_')]
     return df[cols].idxmax(axis=1).str.replace(f"{prefix}_", "")
-sex = reverse_one_hot(X, '성별')
-age = reverse_one_hot(X, '연령대')
-region = reverse_one_hot(X, '지역본부')
 
-# 정답 평균값 계산
-y_original = scaler.inverse_transform(y)
-y_mean = y_original.mean(axis=1)
+full_diseases = []
+full_sex = []
+full_age = []
+full_region = []
+full_y_original = []
+for i in range(len(full_dataset)):
+    disease_id, features, y_target = full_dataset[i]
+    full_diseases.append(le.inverse_transform([disease_id.item()])[0])
+    feature_np = features.numpy()
+    feature_df = pd.DataFrame([feature_np], columns=X.columns.drop("병명"))
+    full_sex.append(reverse_one_hot(feature_df, "성별")[0])
+    full_age.append(reverse_one_hot(feature_df, "연령대")[0])
+    full_region.append(reverse_one_hot(feature_df, "지역본부")[0])
+    full_y_original.append(scaler.inverse_transform(y_target.view(1, -1).numpy())[0])
+full_y_original = np.array(full_y_original)
 
-# bottleneck 값 보정
-scaler_bottleneck = MinMaxScaler()
-bottleneck_norm = scaler_bottleneck.fit_transform(bottleneck_all)
-#bottleneck_scaled = np.sqrt(bottleneck_norm)
-#bottleneck_scaled = np.log1p(bottleneck_norm)
-bottleneck_rescaled = bottleneck_norm.flatten() * y_mean.max()
 
-# 병합
 result_df = pd.DataFrame({
-    '병명': inverse_diseases,
-    '성별': sex,
-    '연령대': age,
-    '지역본부': region,
-    '평균_요양일': y_mean,
-    'bottleneck_output': bottleneck_rescaled.flatten()
+    "병명": full_diseases,
+    "성별": full_sex,
+    "연령대": full_age,
+    "지역본부": full_region,
+    "성별_요양일": full_y_original[:, 0],
+    "수술여부_요양일": full_y_original[:, 1],
+    "연령대_요양일": full_y_original[:, 2],
+    "지역본부_요양일": full_y_original[:, 3],
+    "bottleneck_output": bottleneck_all.flatten()
 })
+
 # 저장
 final_save_dir = f"./Care_Duration_Prediction_Model/Modeling/{file_name}/Final"
 os.makedirs(final_save_dir, exist_ok=True)
@@ -373,33 +383,134 @@ result_df.to_csv(final_path, index=False, encoding='utf-8-sig')
 ####################################### Final Result Analysis ##################################
 ################################################################################################
 
-# 1. 산점도 시각화
-plt.figure(figsize=(8, 6))
-sns.scatterplot(x='평균_요양일', y='bottleneck_output', data=result_df, alpha=0.5)
-plt.title("📈 평균 요양일 vs Bottleneck 출력")
-plt.xlabel("평균 요양일")
-plt.ylabel("Bottleneck 출력")
-plt.grid(True)
-plt.tight_layout()
-plt.savefig(final_save_dir + "/scatter_평균요양일_vs_bottleneck.png")
-plt.close()
+labels = ['성별_요양일', '수술여부_요양일', '연령대_요양일', '지역본부_요양일']
 
-# 2. 히스토그램 (분포 보기)
-plt.figure(figsize=(10, 4))
-plt.subplot(1, 2, 1)
-sns.histplot(result_df['평균_요양일'], kde=True, color="blue")
-plt.title("📊 평균 요양일 분포")
+# 1. 산점도 시각화 (각 요양일별)
+for label in labels:
+    plt.figure(figsize=(8, 6))
+    sns.scatterplot(x=label, y='bottleneck_output', data=result_df, alpha=0.5)
+    plt.title(f"📈 {label} vs Bottleneck 출력")
+    plt.xlabel(label)
+    plt.ylabel("Bottleneck 출력")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(f"{final_save_dir}/scatter_{label}_vs_bottleneck.png")
+    plt.close()
 
-plt.subplot(1, 2, 2)
-sns.histplot(result_df['bottleneck_output'], kde=True, color="red")
+# 2. 히스토그램 (각 요양일 + bottleneck 분포 비교)
+plt.figure(figsize=(12, 10))
+for i, label in enumerate(labels):
+    plt.subplot(3, 2, i + 1)
+    sns.histplot(result_df[label], kde=True, color="skyblue")
+    plt.title(f"📊 {label} 분포")
+
+# bottleneck 출력 분포
+plt.subplot(3, 2, 5)
+sns.histplot(result_df['bottleneck_output'], kde=True, color="salmon")
 plt.title("📊 Bottleneck 출력 분포")
 
 plt.tight_layout()
-plt.savefig(final_save_dir + "/histograms_평균요양일_bottleneck.png")
+plt.savefig(f"{final_save_dir}/histograms_각요양일_bottleneck.png")
 plt.close()
 
-# 3. 상관계수 (Pearson / Spearman)
-pearson_corr, _ = pearsonr(result_df['평균_요양일'], result_df['bottleneck_output'])
-spearman_corr, _ = spearmanr(result_df['평균_요양일'], result_df['bottleneck_output'])
+# 3. 상관계수 분석
+print("📊 상관계수 분석 결과 (Bottleneck vs 각 요양일)")
+print("=" * 50)
+for label in labels:
+    pearson_corr, _ = pearsonr(result_df[label], result_df['bottleneck_output'])
+    spearman_corr, _ = spearmanr(result_df[label], result_df['bottleneck_output'])
+    print(f"🔹 {label}")
+    print(f"  - Pearson  : {pearson_corr:.4f}")
+    print(f"  - Spearman : {spearman_corr:.4f}")
+    print("-" * 50)
 
-print(f'pearson_corr: {pearson_corr}, spearman_corr: {spearman_corr}')
+
+################################################################################################
+####################################### Final Result Rescaled ##################################
+################################################################################################
+
+loader = DataLoader(full_dataset, batch_size=len(full_dataset))
+batch = next(iter(loader))
+targets = batch[2]
+print(targets.shape)
+
+weights_mean = model.network[22].weight.data.mean().double().item()
+biases_mean = model.network[22].bias.data.mean().double().item()
+weights_mean = np.float64(weights_mean)
+biases_mean = np.float64(biases_mean)
+print("weights_mean =", weights_mean)
+print("biases_mean =", biases_mean)
+print("mean:", scaler.mean_)
+print("std:", scaler.scale_)
+mean_avg = scaler.mean_.mean()
+std_avg = scaler.scale_.mean()
+
+
+bottleneck_adjust = bottleneck_all.flatten() * weights_mean + biases_mean
+bottleneck_adjust_inverse = bottleneck_adjust * std_avg + mean_avg
+
+
+
+result_df = pd.DataFrame({
+    "병명": full_diseases,
+    "성별": full_sex,
+    "연령대": full_age,
+    "지역본부": full_region,
+    "성별_요양일": targets[:, 0],
+    "수술여부_요양일": targets[:, 1],
+    "연령대_요양일": targets[:, 2],
+    "지역본부_요양일": targets[:, 3],
+    "bottleneck_output": bottleneck_all.flatten(),
+    "성별_요양일_inverse": full_y_original[:, 0],
+    "수술여부_요양일_inverse": full_y_original[:, 1],
+    "연령대_요양일_inverse": full_y_original[:, 2],
+    "지역본부_요양일_inverse": full_y_original[:, 3],
+    "bottleneck_output_inverse": bottleneck_adjust_inverse
+})
+# 저장
+final_save_dir = f"./Care_Duration_Prediction_Model/Modeling/{file_name}/Final"
+os.makedirs(final_save_dir, exist_ok=True)
+final_path = os.path.join(final_save_dir, "bottleneck_output_2.csv")
+result_df.to_csv(final_path, index=False, encoding='utf-8-sig')
+
+
+labels = ['성별_요양일', '수술여부_요양일', '연령대_요양일', '지역본부_요양일']
+
+# 1. 산점도 시각화 (각 요양일별)
+for i, label in enumerate(labels):
+    plt.figure(figsize=(8, 6))
+    sns.scatterplot(x=full_y_original[:, i], y=bottleneck_adjust_inverse, alpha=0.5)
+    plt.title(f"📈 {label} vs Rescaled_Bottleneck 출력")
+    plt.xlabel(label)
+    plt.ylabel("Bottleneck 출력")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(f"{final_save_dir}/scatter_{label}_vs_rescaled_bottleneck.png")
+    plt.close()
+
+# 2. 히스토그램 (각 요양일 + bottleneck 분포 비교)
+plt.figure(figsize=(12, 10))
+for i, label in enumerate(labels):
+    plt.subplot(3, 2, i + 1)
+    sns.histplot(full_y_original[:, i], kde=True, color="skyblue")
+    plt.title(f"📊 {label} 분포")
+
+# bottleneck 출력 분포
+plt.subplot(3, 2, 5)
+sns.histplot(bottleneck_adjust_inverse, kde=True, color="salmon")
+plt.title("📊 Rescaled_Bottleneck 출력 분포")
+
+plt.tight_layout()
+plt.savefig(f"{final_save_dir}/histograms_각요양일_Rescaled_bottleneck.png")
+plt.close()
+
+# 3. 상관계수 분석
+print("📊 상관계수 분석 결과 (Rescaled_Bottleneck vs 각 요양일)")
+print("=" * 50)
+for i, label in enumerate(labels):
+    pearson_corr, _ = pearsonr(full_y_original[:, i], bottleneck_adjust_inverse)
+    spearman_corr, _ = spearmanr(full_y_original[:, i], bottleneck_adjust_inverse)
+    print(f"🔹 {label}")
+    print(f"  - Pearson  : {pearson_corr:.4f}")
+    print(f"  - Spearman : {spearman_corr:.4f}")
+    print("-" * 50)
