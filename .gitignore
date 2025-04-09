@@ -3,3 +3,4 @@ Care_Duration_Prediction_Model/Data_Preprocessing/raw_img_data/
 Care_Duration_Prediction_Model/Data_Preprocessing/Regular_Expression/final_data.csv
 .idea
 Care_Duration_Prediction_Model/Modeling/MLP/
+.DS_Store
