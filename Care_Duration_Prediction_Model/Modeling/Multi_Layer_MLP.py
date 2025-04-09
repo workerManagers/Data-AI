@@ -14,6 +14,8 @@ import matplotlib
 from sklearn.metrics import mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
 import seaborn as sns
 from scipy.stats import pearsonr, spearmanr
+import joblib
+import json
 
 plt.rcParams['font.family'] = 'Malgun Gothic'  # Windows용 한글 폰트
 plt.rcParams['axes.unicode_minus'] = False     # 음수 부호 깨짐 방지
@@ -85,6 +87,8 @@ processed_df = data_df.copy()
 # Label Encoding: 병명
 le = LabelEncoder()
 processed_df['병명'] = le.fit_transform(processed_df['병명'])
+preprocessor_dir = "./FastAPI/Multi_Layer_MLP_LabelEncoder.pkl"
+joblib.dump(le, preprocessor_dir)
 
 # One-Hot Encoding: 성별, 수술여부, 연령대, 지역본부
 processed_df = processed_df.replace({True: 1, False: 0})
@@ -95,6 +99,17 @@ processed_df = pd.get_dummies(processed_df, columns=categorical_cols)
 scaler = StandardScaler()
 output_cols = ['성별_요양일', '수술여부_요양일', '연령대_요양일', '지역본부_요양일']
 processed_df[output_cols] = scaler.fit_transform(processed_df[output_cols])
+preprocessor_dir ="./FastAPI/Multi_Layer_MLP_StandardScaler.pkl"
+joblib.dump(scaler, preprocessor_dir)
+
+
+# 전처리 후의 입력 데이터프레임
+X_columns = processed_df.drop(columns=output_cols).columns.tolist()
+
+# 저장
+with open('./FastAPI/Multi_Layer_MLP_input_columns.json', 'w', encoding='utf-8') as f:
+    json.dump(X_columns, f, ensure_ascii=False, indent=2)
+
 
 # 최종 입력과 출력 분리
 X = processed_df.drop(columns=output_cols)
