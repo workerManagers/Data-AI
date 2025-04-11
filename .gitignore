@@ -1,6 +1,7 @@
 Care_Duration_Prediction_Model/Data_Preprocessing/OCR/OCR_result/
 Care_Duration_Prediction_Model/Data_Preprocessing/raw_img_data/
 Care_Duration_Prediction_Model/Data_Preprocessing/Regular_Expression/final_data.csv
-.idea
-Care_Duration_Prediction_Model/Modeling/MLP/
+Care_Duration_Prediction_Model/Modeling/MLP_sigmoid/
+Care_Duration_Prediction_Model/Modeling/MLP_softplus/
 .DS_Store
+.idea

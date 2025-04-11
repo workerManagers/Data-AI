@@ -5,9 +5,10 @@ import json
 import numpy as np
 import torch
 
-def initialize():
+def initialize(activate_function='softplus'):
+
     print('model loading...')
-    global model, le, scaler, expected_columns
+    global model, le, scaler, expected_columns, act
     class ComplexMLPWithEmbedding(nn.Module):
         def __init__(self, num_diseases, embedding_dim, input_dim, hidden_dims, bottleneck_dim, output_dim):
             super(ComplexMLPWithEmbedding, self).__init__()
@@ -22,7 +23,10 @@ def initialize():
                 layers.append(nn.Dropout(0.3))
                 prev_dim = h
             layers.append(nn.Linear(prev_dim, bottleneck_dim))
-            layers.append(nn.Softplus())
+            if activate_function == 'sigmoid':
+                layers.append(nn.Sigmoid())
+            elif activate_function == 'softplus':
+                layers.append(nn.Softplus())
             layers.append(nn.Linear(bottleneck_dim, output_dim))
             self.network = nn.Sequential(*layers)
         def forward(self, disease_ids, features):
@@ -36,15 +40,23 @@ def initialize():
     bottleneck_dim = 1
     output_dim = 4
     model = ComplexMLPWithEmbedding(num_diseases, embedding_dim, input_dim, hidden_dims, bottleneck_dim, output_dim)
-    model.load_state_dict(torch.load('./Model_Modulization/Multi_Layer_MLP_module/Multi_Layer_MLP.pt', map_location=torch.device('cuda')))
+    model.load_state_dict(
+        torch.load(
+            f'./Model_Modulization/Multi_Layer_MLP_module/Multi_Layer_MLP_{activate_function}.pt',
+            map_location=torch.device('cuda'),
+            weights_only=True
+        )
+    )
     print('LabelEncoder loading...')
-    le = joblib.load('./Model_Modulization/Multi_Layer_MLP_module/Multi_Layer_MLP_LabelEncoder.pkl')
+    le = joblib.load(f'./Model_Modulization/Multi_Layer_MLP_module/Multi_Layer_MLP_{activate_function}_LabelEncoder.pkl')
     print('StandardScaler loading...')
-    scaler = joblib.load('./Model_Modulization/Multi_Layer_MLP_module/Multi_Layer_MLP_StandardScaler.pkl')
+    scaler = joblib.load(f'./Model_Modulization/Multi_Layer_MLP_module/Multi_Layer_MLP_{activate_function}_StandardScaler.pkl')
     print('columns for get_dummies loading...')
-    with open('./Model_Modulization/Multi_Layer_MLP_module/Multi_Layer_MLP_input_columns.json', 'r', encoding='utf-8') as f:
+    with open(f'./Model_Modulization/Multi_Layer_MLP_module/Multi_Layer_MLP_{activate_function}_input_columns.json', 'r', encoding='utf-8') as f:
         expected_columns = json.load(f)
     print('load Complete!')
+
+    act = activate_function
 
 
 def Data_preprocessing(disease,sex,surgery,age,region):
@@ -61,8 +73,9 @@ def Data_preprocessing(disease,sex,surgery,age,region):
     for col in expected_columns:
         if col not in df.columns:
             df[col] = 0
-    df = df[expected_columns]
-
+    df = df.reindex(columns=expected_columns, fill_value=0)
+    df = df.replace({True: 1, False: 0}).astype(int)
+    print(df)
     disease_tensor = torch.tensor(df['병명'].values, dtype=torch.long)
     feature_tensor = torch.tensor(df.drop(columns=['병명']).values, dtype=torch.float32)
     print('Data preprocessing complete!')
@@ -87,22 +100,25 @@ def run_model_with_bottleneck(disease_tensor, feature_tensor, model):
     print('model run complete!')
     return  bottleneck
 
-def adjust_bottleneck_output(model,scaler,bottleneck):
+def softplus_adjust_bottleneck_output(model,scaler,bottleneck):
     print('bottleneck adjusting...')
-    final_layer = model.network[-1]  # Linear layer
-    weight_mean = final_layer.weight.data.mean().item()
-    bias_mean = final_layer.bias.data.mean().item()
-    mean_avg = scaler.mean_.mean()
-    std_avg = scaler.scale_.mean()
+    weight_mean = np.float64(model.network[-1].weight.data.cpu().numpy().mean())
+    bias_mean = np.float64(model.network[-1].bias.data.cpu().numpy().mean())
+    mean_avg = np.float64(scaler.mean_.mean())
+    std_avg = np.float64(scaler.scale_.mean())
 
     bottleneck_adjust = bottleneck * weight_mean + bias_mean
     bottleneck_inverse = bottleneck_adjust * std_avg + mean_avg
 
-    print('bottleneck adjust complete1')
+    print('bottleneck adjust complete!')
+    return bottleneck_inverse
+
+def sigmoid_adjust_bottleneck_output(bottleneck):
+    bottleneck_inverse = bottleneck * 561.75
     return bottleneck_inverse
 
 def pipeline(disease,sex,surgery,age,region):
     disease_tensor, feature_tensor = Data_preprocessing(disease, sex, surgery, age, region)
     bottleneck = run_model_with_bottleneck(disease_tensor, feature_tensor, model)
-    bottleneck_inverse = adjust_bottleneck_output(model, scaler, bottleneck)
+    bottleneck_inverse = softplus_adjust_bottleneck_output(model, scaler, bottleneck)
     return bottleneck_inverse

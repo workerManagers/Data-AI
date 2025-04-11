@@ -25,7 +25,8 @@ matplotlib.use('Agg')
 ####################################### Path #############################################
 ################################################################################################
 
-file_name = 'MLP'
+activate_function = 'softplus'
+file_name = f'MLP_{activate_function}'
 
 model_save_dir = f"./Care_Duration_Prediction_Model/Modeling/{file_name}/Model"
 result_save_dir = f"./Care_Duration_Prediction_Model/Modeling/{file_name}/Result"
@@ -70,6 +71,10 @@ for _, row in df.iterrows():
         ]
         data_set.append(input_row + output_row)
 data_df = pd.DataFrame(data_set, columns=['병명', '성별', '수술여부', '연령대', '지역본부','성별_요양일', '수술여부_요양일', '연령대_요양일', '지역본부_요양일'])
+data_df['성별'] = data_df['성별'].str.replace('성별_', '', regex=False)
+data_df['수술여부'] = data_df['수술여부'].str.replace('수술여부_', '', regex=False)
+data_df['연령대'] = data_df['연령대'].str.replace('연령대_', '', regex=False)
+data_df['지역본부'] = data_df['지역본부'].str.replace('지역본부_', '', regex=False)
 print(data_df.head())
 print('*'*50)
 print('*'*50)
@@ -87,7 +92,7 @@ processed_df = data_df.copy()
 # Label Encoding: 병명
 le = LabelEncoder()
 processed_df['병명'] = le.fit_transform(processed_df['병명'])
-preprocessor_dir = "./FastAPI/Multi_Layer_MLP_LabelEncoder.pkl"
+preprocessor_dir = f"./Model_Modulization/Multi_Layer_MLP_module/Multi_Layer_MLP_{activate_function}_LabelEncoder.pkl"
 joblib.dump(le, preprocessor_dir)
 
 # One-Hot Encoding: 성별, 수술여부, 연령대, 지역본부
@@ -99,7 +104,7 @@ processed_df = pd.get_dummies(processed_df, columns=categorical_cols)
 scaler = StandardScaler()
 output_cols = ['성별_요양일', '수술여부_요양일', '연령대_요양일', '지역본부_요양일']
 processed_df[output_cols] = scaler.fit_transform(processed_df[output_cols])
-preprocessor_dir ="./FastAPI/Multi_Layer_MLP_StandardScaler.pkl"
+preprocessor_dir =f"./Model_Modulization/Multi_Layer_MLP_module/Multi_Layer_MLP_{activate_function}_StandardScaler.pkl"
 joblib.dump(scaler, preprocessor_dir)
 
 
@@ -107,7 +112,7 @@ joblib.dump(scaler, preprocessor_dir)
 X_columns = processed_df.drop(columns=output_cols).columns.tolist()
 
 # 저장
-with open('./FastAPI/Multi_Layer_MLP_input_columns.json', 'w', encoding='utf-8') as f:
+with open(f'./Model_Modulization/Multi_Layer_MLP_module/Multi_Layer_MLP_{activate_function}_input_columns.json', 'w', encoding='utf-8') as f:
     json.dump(X_columns, f, ensure_ascii=False, indent=2)
 
 
@@ -175,8 +180,11 @@ class ComplexMLPWithEmbedding(nn.Module):
             layers.append(nn.Dropout(0.3))
             prev_dim = h
         layers.append(nn.Linear(prev_dim, bottleneck_dim))
-        # layers.append(nn.Sigmoid())
-        layers.append(nn.Softplus())
+        if activate_function == 'sigmoid':
+            layers.append(nn.Sigmoid())
+        elif activate_function == 'softplus':
+            layers.append(nn.Softplus())
+
         layers.append(nn.Linear(bottleneck_dim, output_dim))
         self.network = nn.Sequential(*layers)
 
@@ -213,53 +221,53 @@ best_val_loss = float('inf')
 patience = 30
 counter = 0
 
-# for epoch in range(1000):
-#     model.train()
-#     epoch_train_loss = 0.0
-#     for disease_id, xb, yb in train_loader:
-#         disease_id, xb, yb = disease_id.to(device), xb.to(device), yb.to(device)
-#         optimizer.zero_grad()
-#         preds = model(disease_id, xb)
-#         loss = criterion(preds, yb)
-#         loss.backward()
-#         optimizer.step()
-#         epoch_train_loss += loss.item() * xb.size(0)
-#     epoch_train_loss /= len(train_loader.dataset)
-#     train_losses.append(epoch_train_loss)
-#
-#     # validation
-#     model.eval()
-#     epoch_val_loss = 0.0
-#     with torch.no_grad():
-#         for disease_id, xb, yb in val_loader:
-#             disease_id, xb, yb = disease_id.to(device), xb.to(device), yb.to(device)
-#             preds = model(disease_id, xb)
-#             loss = criterion(preds, yb)
-#             epoch_val_loss += loss.item() * xb.size(0)
-#     epoch_val_loss /= len(val_loader.dataset)
-#     val_losses.append(epoch_val_loss)
-#
-#     # ReduceLROnPlateau 확인
-#     prev_lr = optimizer.param_groups[0]['lr']
-#     scheduler.step(epoch_val_loss)
-#     new_lr = optimizer.param_groups[0]['lr']
-#     if new_lr < prev_lr:
-#         print(f"📉 Epoch {epoch + 1:03d} | LR reduced from {prev_lr:.8f} to {new_lr:.8f}")
-#
-#     print(f"Epoch {epoch+1:03d} | Train Loss: {epoch_train_loss:.8f} | Val Loss: {epoch_val_loss:.8f}")
-#
-#     # Early stopping
-#     if epoch_val_loss < best_val_loss:
-#         best_val_loss = epoch_val_loss
-#         counter = 0
-#         torch.save(model.state_dict(), "best_model.pt")
-#     else:
-#         counter += 1
-#         if counter >= patience:
-#             print("🛑 Early stopping triggered.")
-#             break
-#
-# torch.save(model.state_dict(), model_path)
+for epoch in range(1000):
+    model.train()
+    epoch_train_loss = 0.0
+    for disease_id, xb, yb in train_loader:
+        disease_id, xb, yb = disease_id.to(device), xb.to(device), yb.to(device)
+        optimizer.zero_grad()
+        preds = model(disease_id, xb)
+        loss = criterion(preds, yb)
+        loss.backward()
+        optimizer.step()
+        epoch_train_loss += loss.item() * xb.size(0)
+    epoch_train_loss /= len(train_loader.dataset)
+    train_losses.append(epoch_train_loss)
+
+    # validation
+    model.eval()
+    epoch_val_loss = 0.0
+    with torch.no_grad():
+        for disease_id, xb, yb in val_loader:
+            disease_id, xb, yb = disease_id.to(device), xb.to(device), yb.to(device)
+            preds = model(disease_id, xb)
+            loss = criterion(preds, yb)
+            epoch_val_loss += loss.item() * xb.size(0)
+    epoch_val_loss /= len(val_loader.dataset)
+    val_losses.append(epoch_val_loss)
+
+    # ReduceLROnPlateau 확인
+    prev_lr = optimizer.param_groups[0]['lr']
+    scheduler.step(epoch_val_loss)
+    new_lr = optimizer.param_groups[0]['lr']
+    if new_lr < prev_lr:
+        print(f"📉 Epoch {epoch + 1:03d} | LR reduced from {prev_lr:.8f} to {new_lr:.8f}")
+
+    print(f"Epoch {epoch+1:03d} | Train Loss: {epoch_train_loss:.8f} | Val Loss: {epoch_val_loss:.8f}")
+
+    # Early stopping
+    if epoch_val_loss < best_val_loss:
+        best_val_loss = epoch_val_loss
+        counter = 0
+        torch.save(model.state_dict(), "best_model.pt")
+    else:
+        counter += 1
+        if counter >= patience:
+            print("🛑 Early stopping triggered.")
+            break
+
+torch.save(model.state_dict(), model_path)
 
 ################################################################################################
 ####################################### AI Test ################################################
@@ -361,6 +369,7 @@ def reverse_one_hot(df, prefix):
 
 full_diseases = []
 full_sex = []
+full_survey = []
 full_age = []
 full_region = []
 full_y_original = []
@@ -369,6 +378,7 @@ for i in range(len(full_dataset)):
     full_diseases.append(le.inverse_transform([disease_id.item()])[0])
     feature_np = features.numpy()
     feature_df = pd.DataFrame([feature_np], columns=X.columns.drop("병명"))
+    full_survey.append(reverse_one_hot(feature_df, "수술여부")[0])
     full_sex.append(reverse_one_hot(feature_df, "성별")[0])
     full_age.append(reverse_one_hot(feature_df, "연령대")[0])
     full_region.append(reverse_one_hot(feature_df, "지역본부")[0])
@@ -379,6 +389,7 @@ full_y_original = np.array(full_y_original)
 result_df = pd.DataFrame({
     "병명": full_diseases,
     "성별": full_sex,
+    "수술여부": full_survey,
     "연령대": full_age,
     "지역본부": full_region,
     "성별_요양일": full_y_original[:, 0],
@@ -449,26 +460,29 @@ batch = next(iter(loader))
 targets = batch[2]
 print(targets.shape)
 
-weights_mean = model.network[22].weight.data.mean().double().item()
-biases_mean = model.network[22].bias.data.mean().double().item()
-weights_mean = np.float64(weights_mean)
-biases_mean = np.float64(biases_mean)
-print("weights_mean =", weights_mean)
-print("biases_mean =", biases_mean)
-print("mean:", scaler.mean_)
-print("std:", scaler.scale_)
-mean_avg = scaler.mean_.mean()
-std_avg = scaler.scale_.mean()
+if activate_function == 'sigmoid':
+    bottleneck_adjust_inverse = bottleneck_all.flatten()*full_y_original.mean(axis = 1).max()
 
-
-bottleneck_adjust = bottleneck_all.flatten() * weights_mean + biases_mean
-bottleneck_adjust_inverse = bottleneck_adjust * std_avg + mean_avg
+elif activate_function == 'softplus':
+    weights_mean = model.network[22].weight.data.mean().double().item()
+    biases_mean = model.network[22].bias.data.mean().double().item()
+    weights_mean = np.float64(weights_mean)
+    biases_mean = np.float64(biases_mean)
+    print("weights_mean =", weights_mean)
+    print("biases_mean =", biases_mean)
+    print("mean:", scaler.mean_)
+    print("std:", scaler.scale_)
+    mean_avg = scaler.mean_.mean()
+    std_avg = scaler.scale_.mean()
+    bottleneck_adjust = bottleneck_all.flatten() * weights_mean + biases_mean
+    bottleneck_adjust_inverse = bottleneck_adjust * std_avg + mean_avg
 
 
 
 result_df = pd.DataFrame({
     "병명": full_diseases,
     "성별": full_sex,
+    "수술여부": full_survey,
     "연령대": full_age,
     "지역본부": full_region,
     "성별_요양일": targets[:, 0],
