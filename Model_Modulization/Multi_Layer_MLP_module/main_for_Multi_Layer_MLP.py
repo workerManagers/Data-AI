@@ -1,10 +1,11 @@
 import sys
 import os
-
 import pandas as pd
-
+pd.set_option('display.max_columns', None)
 sys.path.append(os.path.abspath("./Model_Modulization/Multi_Layer_MLP_module/"))
 from Multi_Layer_MLP_module import initialize, pipeline
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 act = 'softplus'
 initialize(act)

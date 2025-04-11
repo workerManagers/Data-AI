@@ -25,7 +25,7 @@ matplotlib.use('Agg')
 ####################################### Path #############################################
 ################################################################################################
 
-activate_function = 'sigmoid'
+activate_function = 'softplus'
 file_name = f'MLP_{activate_function}'
 
 model_save_dir = f"./Care_Duration_Prediction_Model/Modeling/{file_name}/Model"
@@ -71,6 +71,10 @@ for _, row in df.iterrows():
         ]
         data_set.append(input_row + output_row)
 data_df = pd.DataFrame(data_set, columns=['병명', '성별', '수술여부', '연령대', '지역본부','성별_요양일', '수술여부_요양일', '연령대_요양일', '지역본부_요양일'])
+data_df['성별'] = data_df['성별'].str.replace('성별_', '', regex=False)
+data_df['수술여부'] = data_df['수술여부'].str.replace('수술여부_', '', regex=False)
+data_df['연령대'] = data_df['연령대'].str.replace('연령대_', '', regex=False)
+data_df['지역본부'] = data_df['지역본부'].str.replace('지역본부_', '', regex=False)
 print(data_df.head())
 print('*'*50)
 print('*'*50)
@@ -88,7 +92,7 @@ processed_df = data_df.copy()
 # Label Encoding: 병명
 le = LabelEncoder()
 processed_df['병명'] = le.fit_transform(processed_df['병명'])
-preprocessor_dir = f"./FastAPI/Multi_Layer_MLP_{activate_function}_LabelEncoder.pkl"
+preprocessor_dir = f"./Model_Modulization/Multi_Layer_MLP_module/Multi_Layer_MLP_{activate_function}_LabelEncoder.pkl"
 joblib.dump(le, preprocessor_dir)
 
 # One-Hot Encoding: 성별, 수술여부, 연령대, 지역본부
@@ -100,7 +104,7 @@ processed_df = pd.get_dummies(processed_df, columns=categorical_cols)
 scaler = StandardScaler()
 output_cols = ['성별_요양일', '수술여부_요양일', '연령대_요양일', '지역본부_요양일']
 processed_df[output_cols] = scaler.fit_transform(processed_df[output_cols])
-preprocessor_dir =f"./FastAPI/Multi_Layer_MLP_{activate_function}_StandardScaler.pkl"
+preprocessor_dir =f"./Model_Modulization/Multi_Layer_MLP_module/Multi_Layer_MLP_{activate_function}_StandardScaler.pkl"
 joblib.dump(scaler, preprocessor_dir)
 
 
@@ -108,7 +112,7 @@ joblib.dump(scaler, preprocessor_dir)
 X_columns = processed_df.drop(columns=output_cols).columns.tolist()
 
 # 저장
-with open(f'./FastAPI/Multi_Layer_MLP_{activate_function}_input_columns.json', 'w', encoding='utf-8') as f:
+with open(f'./Model_Modulization/Multi_Layer_MLP_module/Multi_Layer_MLP_{activate_function}_input_columns.json', 'w', encoding='utf-8') as f:
     json.dump(X_columns, f, ensure_ascii=False, indent=2)
 
 

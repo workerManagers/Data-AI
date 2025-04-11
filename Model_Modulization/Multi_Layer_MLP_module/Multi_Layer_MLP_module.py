@@ -5,7 +5,7 @@ import json
 import numpy as np
 import torch
 
-def initialize(activate_function):
+def initialize(activate_function='softplus'):
 
     print('model loading...')
     global model, le, scaler, expected_columns, act
@@ -40,7 +40,13 @@ def initialize(activate_function):
     bottleneck_dim = 1
     output_dim = 4
     model = ComplexMLPWithEmbedding(num_diseases, embedding_dim, input_dim, hidden_dims, bottleneck_dim, output_dim)
-    model.load_state_dict(torch.load(f'./Model_Modulization/Multi_Layer_MLP_module/Multi_Layer_MLP_{activate_function}.pt', map_location=torch.device('cuda')))
+    model.load_state_dict(
+        torch.load(
+            f'./Model_Modulization/Multi_Layer_MLP_module/Multi_Layer_MLP_{activate_function}.pt',
+            map_location=torch.device('cuda'),
+            weights_only=True
+        )
+    )
     print('LabelEncoder loading...')
     le = joblib.load(f'./Model_Modulization/Multi_Layer_MLP_module/Multi_Layer_MLP_{activate_function}_LabelEncoder.pkl')
     print('StandardScaler loading...')
@@ -68,7 +74,8 @@ def Data_preprocessing(disease,sex,surgery,age,region):
         if col not in df.columns:
             df[col] = 0
     df = df.reindex(columns=expected_columns, fill_value=0)
-
+    df = df.replace({True: 1, False: 0}).astype(int)
+    print(df)
     disease_tensor = torch.tensor(df['병명'].values, dtype=torch.long)
     feature_tensor = torch.tensor(df.drop(columns=['병명']).values, dtype=torch.float32)
     print('Data preprocessing complete!')
@@ -103,7 +110,7 @@ def softplus_adjust_bottleneck_output(model,scaler,bottleneck):
     bottleneck_adjust = bottleneck * weight_mean + bias_mean
     bottleneck_inverse = bottleneck_adjust * std_avg + mean_avg
 
-    print('bottleneck adjust complete1')
+    print('bottleneck adjust complete!')
     return bottleneck_inverse
 
 def sigmoid_adjust_bottleneck_output(bottleneck):

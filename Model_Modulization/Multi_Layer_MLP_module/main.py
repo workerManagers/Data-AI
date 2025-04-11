@@ -1,33 +1,34 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query, HTTPException
 from pydantic import BaseModel
 import sys
 import os
+from typing import Literal
+
 sys.path.append(os.path.abspath("./Model_Modulization/Multi_Layer_MLP_module/"))
 from Multi_Layer_MLP_module import initialize, pipeline
 
-# FastAPI 앱 초기화
+act = 'softplus'
+initialize(act)
+
 app = FastAPI()
 
-# 초기화 (모델, 인코더 등)
-initialize()
+class PredictionOutput(BaseModel):
+    predicted_value: float
 
-# 입력 데이터 형식 정의 (요청용)
-from typing import Literal
-from pydantic import BaseModel
+# 예측 API (쿼리 파라미터 방식)
+@app.get("/predict", response_model=PredictionOutput)
+async def predict_care_duration(
+    disease: str = Query(..., description="병명"),
+    sex: Literal["남자", "여자"] = Query(..., description="성별"),
+    surgery: Literal["예", "아니오"] = Query(..., description="수술 여부"),
+    age: Literal["30세미만", "30-39세", "40-49세", "50-59세", "60세이상"] = Query(..., description="연령대"),
+    region: Literal["부산지역", "대구지역", "광주지역", "서울지역", "경인지역", "대전지역"] = Query(..., description="지역")
+):
+    try:
+        result = pipeline(disease, sex, surgery, age, region)
+        return PredictionOutput(predicted_value=float(result[0]))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-class PredictRequest(BaseModel):
-    disease: str  # 여기는 값이 너무 많으니까 그냥 str로 유지 추천
-    sex: Literal["남자", "여자"]
-    surgery: Literal["예", "아니오"]
-    age: Literal["30세미만", "30-39세", "40-49세", "50-59세", "60세이상"]
-    region: Literal["서울지역", "부산지역", "대구지역", "경인지역", "광주지역", "대전지역"]
-
-
-
-# API 라우터
-@app.post("/predict")
-def predict(data: PredictRequest):
-    output = pipeline(data.disease, data.sex, data.surgery, data.age, data.region)
-    return {
-        "rescaled_bottleneck_output": float(output[0])
-    }
+# uvicorn Model_Modulization.Multi_Layer_MLP_module.main:app --reload
+# http://127.0.0.1:8000/docs
