@@ -5,7 +5,7 @@ import os
 from typing import Literal
 
 sys.path.append(os.path.abspath("./Model_Modulization/Multi_Layer_MLP_module/"))
-from Multi_Layer_MLP_module import initialize, pipeline
+from Multi_Layer_MLP_module import initialize, pipeline, search_diagnoses
 
 act = 'softplus'
 initialize(act)
@@ -29,6 +29,17 @@ async def predict_care_duration(
         return PredictionOutput(predicted_value=float(result[0]))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/search-diagnosis")
+def search_diagnosis(keyword: str = ""):
+    keyword = keyword.strip()
+    if not keyword:
+        return {"results": [], "message": "검색어가 비어있습니다."}
+    diagnoses_list = search_diagnoses(keyword)
+    if not diagnoses_list:
+        return {"results": [], "message": f"'{keyword}'에 해당하는 병명이 없습니다."}
+    return {"results": diagnoses_list}
 
 # uvicorn Model_Modulization.Multi_Layer_MLP_module.main:app --reload
 # http://127.0.0.1:8000/docs
