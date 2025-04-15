@@ -38,7 +38,7 @@ def initialize(root_path):
     model.load_state_dict(
         torch.load(
             f'{root_path}/Multi_Layer_MLP_softplus.pt',
-            map_location=torch.device('cuda'),
+            map_location=torch.device('cpu'),
             weights_only=True
         )
     )
