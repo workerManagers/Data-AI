@@ -2,14 +2,17 @@ from fastapi import FastAPI, Query, HTTPException
 from pydantic import BaseModel
 import sys
 import os
-from typing import Literal
+from typing import List, Dict, Any, Literal, Union
 root_path= './FastAPI'
 sys.path.append(os.path.abspath(f"{root_path}/"))
+
 import Multi_Layer_MLP_module as model
 import search_diagnosis_module as search
+import Recommendation_based_on_similarity as similar
 
 model.initialize(root_path)
 search.initialize(root_path)
+similar.initialize()
 
 app = FastAPI()
 
@@ -49,13 +52,21 @@ def search_diagnosis(keyword: str = ""):
         return {"results": [], "message": f"'{keyword}'에 해당하는 병명이 없습니다."}
     return {"results": diagnoses_list}
 
-class ResumeInput(BaseModel):
-    resume: str
 
-@app.post("/compare_resume")
-def compare_resume(data: ResumeInput):
-    return 0
+class SimilarityResult(BaseModel):
+    id: Union[str, int]
+    similarity: str
 
+class CompareRequest(BaseModel):
+    input_text: str
+    dataset: List[Dict[str, Any]]
+
+@app.post("/compare", response_model=List[SimilarityResult])
+def compare_resume(data: CompareRequest):
+    try:
+        return similar.pipeline(data.dataset, data.input_text)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"서버 내부 오류: {str(e)}")
 
 # uvicorn FastAPI.main:app --reload
 # http://127.0.0.1:8000/docs
