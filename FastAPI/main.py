@@ -73,5 +73,9 @@ def search_diagnosis(keyword: str = ""):
     logger.info(f"/search-diagnosis 결과: {diagnoses_list}")
     return {"results": diagnoses_list}
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
 # uvicorn main:app --host=0.0.0.0 --port=8000
 # http://127.0.0.1:8000/docs
