@@ -68,5 +68,9 @@ def compare_resume(data: CompareRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"서버 내부 오류: {str(e)}")
 
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
 # uvicorn FastAPI.main:app --reload
 # http://127.0.0.1:8000/docs
