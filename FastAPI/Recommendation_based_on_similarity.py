@@ -3,7 +3,7 @@ from sentence_transformers import SentenceTransformer, util
 
 def initialize():
     global model
-    model = SentenceTransformer('jhgan/ko-sbert-sts')
+    model = SentenceTransformer('bongsoo/albert-small-kor-sbert-v1')
 
 def split_into_token_safe_chunks(text, token_limit=512, char_hint=200):
     text = text.replace('\n', ' ')
