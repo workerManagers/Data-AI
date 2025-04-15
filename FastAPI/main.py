@@ -3,7 +3,7 @@ from pydantic import BaseModel
 import sys
 import os
 from typing import List, Dict, Any, Literal, Union
-root_path= './FastAPI'
+root_path= '.'
 sys.path.append(os.path.abspath(f"{root_path}/"))
 
 import Multi_Layer_MLP_module as model
