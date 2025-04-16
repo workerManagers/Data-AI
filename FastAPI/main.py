@@ -3,7 +3,7 @@ from fastapi import FastAPI, Query, HTTPException
 from pydantic import BaseModel
 import sys
 import os
-from typing import List, Literal
+from typing import List, Dict, Any, Literal, Union
 
 # 로깅 설정
 logging.basicConfig(
@@ -17,6 +17,7 @@ sys.path.append(os.path.abspath(f"{root_path}/"))
 
 import Multi_Layer_MLP_module as model
 import search_diagnosis_module as search
+import Recommendation_based_on_similarity as similar
 
 # 모델 및 모듈 초기화
 logger.info("모델(Multi_Layer_MLP_module) 초기화 시작")
@@ -26,6 +27,10 @@ logger.info("모델(Multi_Layer_MLP_module) 초기화 완료")
 logger.info("진단명 검색 모듈(search_diagnosis_module) 초기화 시작")
 search.initialize(root_path)
 logger.info("진단명 검색 모듈(search_diagnosis_module) 초기화 완료")
+
+logger.info("유사도 추천 모듈(Recommendation_based_on_similarity) 초기화 시작")
+similar.initialize()
+logger.info("유사도 추천 모듈(Recommendation_based_on_similarity) 초기화 완료")
 
 app = FastAPI()
 
@@ -73,9 +78,24 @@ def search_diagnosis(keyword: str = ""):
     logger.info(f"/search-diagnosis 결과: {diagnoses_list}")
     return {"results": diagnoses_list}
 
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
+class SimilarityResult(BaseModel):
+    id: Union[str, int]
+    similarity: str
 
-# uvicorn main:app --host=0.0.0.0 --port=8000
+class CompareRequest(BaseModel):
+    input_text: str
+    dataset: List[Dict[str, Any]]
+
+@app.post("/compare", response_model=List[SimilarityResult])
+def compare_resume(data: CompareRequest):
+    logger.info(f"/compare 호출: input_text 길이={len(data.input_text)}, dataset 크기={len(data.dataset)}")
+    try:
+        result = similar.pipeline(data.dataset, data.input_text)
+        logger.info(f"/compare 결과: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"/compare Exception: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"서버 내부 오류: {str(e)}")
+
+# uvicorn FastAPI.main:app --reload
 # http://127.0.0.1:8000/docs
