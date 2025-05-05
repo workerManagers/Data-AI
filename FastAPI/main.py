@@ -1,9 +1,12 @@
 import logging
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, BackgroundTasks
 from pydantic import BaseModel
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import sys
 import os
 from typing import List, Dict, Any, Literal, Union
+import uuid
 
 # 로깅 설정
 logging.basicConfig(
@@ -78,6 +81,18 @@ def search_diagnosis(keyword: str = ""):
     logger.info(f"/search-diagnosis 결과: {diagnoses_list}")
     return {"results": diagnoses_list}
 
+# CORS 미들웨어 설정
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 결과를 저장할 딕셔너리
+matching_results = {}
+
 class SimilarityResult(BaseModel):
     id: Union[str, int]
     similarity: str
@@ -86,16 +101,46 @@ class CompareRequest(BaseModel):
     input_text: str
     dataset: List[Dict[str, Any]]
 
-@app.post("/compare", response_model=List[SimilarityResult])
-def compare_resume(data: CompareRequest):
+# 백그라운드에서 실행될 매칭 함수
+async def process_matching(input_text: str, dataset: List[Dict[str, Any]], task_id: str):
+    try:
+        # 기존 AI 매칭 로직 실행
+        result = similar.pipeline(dataset, input_text)
+        matching_results[task_id] = {"status": "completed", "result": result}
+        logger.info(f"Task {task_id} completed successfully")
+    except Exception as e:
+        logger.error(f"Task {task_id} failed: {str(e)}", exc_info=True)
+        matching_results[task_id] = {"status": "failed", "error": str(e)}
+
+@app.post("/compare")
+async def compare_resume(data: CompareRequest, background_tasks: BackgroundTasks):
     logger.info(f"/compare 호출: input_text 길이={len(data.input_text)}, dataset 크기={len(data.dataset)}")
     try:
-        result = similar.pipeline(data.dataset, data.input_text)
-        logger.info(f"/compare 결과: {result}")
-        return result
+        task_id = str(uuid.uuid4())
+        matching_results[task_id] = {"status": "processing"}
+        
+        # 백그라운드 작업으로 처리
+        background_tasks.add_task(
+            process_matching,
+            data.input_text,
+            data.dataset,
+            task_id
+        )
+        
+        # 즉시 작업 ID 반환
+        return JSONResponse({
+            "task_id": task_id,
+            "status": "processing"
+        })
     except Exception as e:
         logger.error(f"/compare Exception: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"서버 내부 오류: {str(e)}")
+
+@app.get("/compare/status/{task_id}")
+async def check_status(task_id: str):
+    result = matching_results.get(task_id, {"status": "not_found"})
+    return JSONResponse(result)
+
 
 @app.get("/health")
 async def health_check():
